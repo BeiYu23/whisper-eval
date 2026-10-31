@@ -17,12 +17,24 @@ def normalize(text: str) -> str:
     return " ".join(text.split())
 
 
+def count_errors(ref: str, hyp: str) -> tuple[int, int]:
+    """返回 (错误数, 参考词数)。
+
+    jiwer.process_words(reference, hypothesis) 返回 WordOutput，
+    其中 substitutions / deletions / insertions / hits 是各类型的计数。
+    注意：process_words 需要两个位置参数，不能只传一个。
+    """
+    from jiwer import process_words
+    out = process_words(normalize(ref), normalize(hyp))
+    errors = out.substitutions + out.deletions + out.insertions
+    words = out.substitutions + out.deletions + out.hits
+    return errors, words
+
+
 def compute_wer(ref: str, hyp: str) -> float | None:
     try:
         from jiwer import wer as jiwer_wer
     except ImportError:
-        jiwer_wer = None
-    if jiwer_wer is None:
         return None
     return jiwer_wer(normalize(ref), normalize(hyp))
 
@@ -60,20 +72,12 @@ def main() -> int:
             if not ref:
                 continue
             scored += 1
-            w = compute_wer(ref, hyp)
-            if w is None:
-                continue
-            # 用 jiwer 的 transformation 拿准确计数
-            from jiwer import process_words
-            out_ref = process_words(normalize(ref))
-            out_hyp = process_words(normalize(hyp))
-            err = out_ref.substitutions + out_ref.deletions + out_ref.insertions
-            n = out_ref.substitutions + out_ref.deletions + out_ref.hits
-            tot_err += err
-            tot_n += n
+            errors, words = count_errors(ref, hyp)
+            tot_err += errors
+            tot_n += words
             s = row.get("scenario", "unknown")
-            scen[s][0] += err
-            scen[s][1] += n
+            scen[s][0] += errors
+            scen[s][1] += words
         out["by_config"][cfg] = {
             "wer": (tot_err / tot_n) if tot_n else None,
             "errors": tot_err,
