@@ -1,0 +1,74 @@
+{
+  "by_config": {
+    "pytorch_fp32": {
+      "wer": 0.0241,
+      "errors": 412,
+      "words": 17096,
+      "scored_utts": 60
+    },
+    "onnx_fp16": {
+      "wer": 0.0244,
+      "errors": 417,
+      "words": 17096,
+      "scored_utts": 60
+    },
+    "onnx_int8": {
+      "wer": 0.0363,
+      "errors": 621,
+      "words": 17096,
+      "scored_utts": 60
+    },
+    "tensorrt_fp16": {
+      "wer": 0.0242,
+      "errors": 414,
+      "words": 17096,
+      "scored_utts": 60
+    },
+    "onnx_int8_fp16_fallback": {
+      "wer": 0.0279,
+      "errors": 477,
+      "words": 17096,
+      "scored_utts": 60
+    }
+  },
+  "by_scenario": {
+    "pytorch_fp32": {
+      "quiet": 0.0192,
+      "noisy": 0.0344,
+      "proper_noun": 0.0481
+    },
+    "onnx_fp16": {
+      "quiet": 0.0195,
+      "noisy": 0.0349,
+      "proper_noun": 0.0485
+    },
+    "onnx_int8": {
+      "quiet": 0.0196,
+      "noisy": 0.0538,
+      "proper_noun": 0.0827
+    },
+    "tensorrt_fp16": {
+      "quiet": 0.0193,
+      "noisy": 0.0346,
+      "proper_noun": 0.0482
+    },
+    "onnx_int8_fp16_fallback": {
+      "quiet": 0.0194,
+      "noisy": 0.0386,
+      "proper_noun": 0.0512
+    }
+  },
+  "scenario_samples": {
+    "quiet": 28,
+    "noisy": 18,
+    "proper_noun": 14
+  },
+  "fallback_detail": {
+    "strategy": "对 encoder 前段与 cross-attention 的部分投影层保留 FP16，其余保持 INT8",
+    "excluded_layers": 3,
+    "latency_ms": 142,
+    "vram_gb": 0.91,
+    "wer_gain": 0.0084,
+    "latency_cost": 0.084
+  }
+}

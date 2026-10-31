@@ -26,6 +26,7 @@ python scripts/export_onnx.py --model small --quant fp16 --trt   # 需 TensorRT 
 # 4) 跑评测
 python scripts/bench.py --out reports/
 python scripts/wer_eval.py --report reports/bench.json
+python scripts/make_report.py --reports reports/   # 由原始数据生成 summary.md
 
 # 5) 看报告
 cat reports/summary.md
@@ -42,6 +43,7 @@ cat reports/summary.md
 | `scripts/export_onnx.py` | 导出 FP16 ONNX / INT8 动态量化 ONNX，可选构建 TensorRT engine（`trtexec`） |
 | `scripts/bench.py` | 四配置逐条测量：延迟、P95、RTF、峰值显存、吞吐，并留档 `config.json` |
 | `scripts/wer_eval.py` | 计算各配置 WER，并按场景拆解掉点位置 |
+| `scripts/make_report.py` | 由 `bench.json` + `wer.json` 生成 `summary.md`，保证汇总与原始数据永远自洽 |
 
 ## CI 自检
 

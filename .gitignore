@@ -8,11 +8,15 @@ models/
 data/
 !data/.gitkeep
 
-# 评测报告（保留示例格式，不提交真实数据）
+# 评测报告：真实结果入库（可验证性核心），仅忽略本地临时产物
 reports/*.json
 reports/*.md
-!reports/.gitkeep
+!reports/summary.md
+!reports/config.json
+!reports/wer.json
+!reports/bench.json
 !reports/example-summary.md
+!reports/.gitkeep
 
 # Python
 .venv/

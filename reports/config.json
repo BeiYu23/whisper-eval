@@ -1,0 +1,19 @@
+{
+  "model": "small",
+  "n_samples": 60,
+  "audio_seconds": 731.4,
+  "configs": ["pytorch_fp32", "onnx_fp16", "onnx_int8", "tensorrt_fp16"],
+  "python": "3.12.11",
+  "platform": "Windows-10-10.0.26100-SP0",
+  "gpu": "NVIDIA GeForce RTX 5070 Ti (16GB)",
+  "gpu_detected": "NVIDIA GeForce RTX 5070 Ti, 16303 MiB",
+  "driver": "581.29",
+  "seed": 42,
+  "dataset": "LibriSpeech test-clean (前 60 条) + 自建中文场景补充集",
+  "scenarios": {
+    "quiet": 28,
+    "noisy": 18,
+    "proper_noun": 14
+  },
+  "notes": "专有名词与嘈杂场景为自建补充集（中文人名 / 行业术语 / 带背景噪声的朗读），已合并进 manifest 的 scenario 字段"
+}
