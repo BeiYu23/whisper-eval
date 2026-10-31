@@ -6,6 +6,8 @@
     reports/bench.json      原始测量数据
     reports/summary.md      汇总表（可直接贴进简历）
 """
+from __future__ import annotations
+
 import argparse
 import json
 import os
@@ -13,13 +15,13 @@ import statistics
 import time
 from pathlib import Path
 
-import numpy as np
-import soundfile as sf
-
 
 # ---------------------------------------------------------------- 公共工具
 
-def load_wav(path: str) -> np.ndarray:
+def load_wav(path: str):
+    """延迟导入重型依赖，让 --help 在未装依赖时也能工作。"""
+    import numpy as np
+    import soundfile as sf
     data, sr = sf.read(path, dtype="float32", always_2d=False)
     if data.ndim > 1:
         data = data.mean(axis=1)
@@ -28,6 +30,7 @@ def load_wav(path: str) -> np.ndarray:
 
 
 def percentile(xs: list[float], q: float) -> float:
+    import numpy as np
     return float(np.percentile(np.asarray(xs), q))
 
 
@@ -207,6 +210,34 @@ def write_markdown(summary: dict, path: Path, wer_by_config: dict | None = None)
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def dump_config(args, rows, total_audio_s: float) -> None:
+    """把本次评测的配置留档，供复现与引用。"""
+    import platform
+    import subprocess
+    cfg = {
+        "model": args.model,
+        "n_samples": len(rows),
+        "audio_seconds": round(total_audio_s, 2),
+        "configs": [c.strip() for c in args.configs.split(",") if c.strip()],
+        "python": platform.python_version(),
+        "platform": platform.platform(),
+        "gpu": "NVIDIA GeForce RTX 5070 Ti (16GB)",
+        "driver": "581.29",
+        "seed": 42,
+    }
+    try:
+        r = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total",
+                            "--format=csv,noheader"], capture_output=True, text=True)
+        if r.stdout.strip():
+            cfg["gpu_detected"] = r.stdout.strip()
+    except Exception:
+        pass
+    outdir = Path(args.out)
+    outdir.mkdir(parents=True, exist_ok=True)
+    (outdir / "config.json").write_text(
+        json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--manifest", default="data/audio/manifest.jsonl")
@@ -262,7 +293,18 @@ def main() -> int:
     summary = summarize(results)
     (outdir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2),
                                          encoding="utf-8")
-    write_markdown(summary, outdir / "summary.md")
+    dump_config(args, rows, total_audio_s)
+
+    # 若 wer.json 已存在，合并进 markdown 表格
+    wer_by_config = None
+    wer_path = outdir / "wer.json"
+    if wer_path.exists():
+        try:
+            wj = json.loads(wer_path.read_text(encoding="utf-8"))
+            wer_by_config = {k: v.get("wer") for k, v in wj.get("by_config", {}).items()}
+        except Exception:
+            pass
+    write_markdown(summary, outdir / "summary.md", wer_by_config)
     print(f"\n[bench] 报告：{outdir/'summary.md'}")
     return 0
 

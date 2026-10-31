@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: 语法与导入检查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安装轻量依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy soundfile jiwer
+
+      - name: 编译检查（不执行重型依赖）
+        run: |
+          for f in scripts/*.py; do
+            echo "--- $f"
+            python -m py_compile "$f"
+          done
+
+      - name: CLI 参数自检
+        run: |
+          python scripts/prepare_data.py --help
+          python scripts/bench.py --help
+          python scripts/wer_eval.py --help
+          python scripts/export_onnx.py --help
+
+  selfcheck:
+    name: 端到端冒烟（CPU，最小规模）
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy soundfile jiwer
+
+      - name: 生成合成音频 + 参考文本（不依赖外部下载）
+        run: |
+          python - <<'PY'
+          import json, math, struct, wave, pathlib, random
+          out = pathlib.Path("data/audio"); out.mkdir(parents=True, exist_ok=True)
+          rng = random.Random(7)
+          rows = []
+          # 合成 3 条短音频（440Hz 音调），参考文本用占位词
+          for i in range(3):
+              dur = 1.0 + i * 0.5
+              sr = 16000
+              path = out / f"syn{i:04d}.wav"
+              with wave.open(str(path), "wb") as w:
+                  w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
+                  frames = bytearray()
+                  for s in range(int(dur * sr)):
+                      v = int(12000 * math.sin(2 * math.pi * 440 * s / sr))
+                      frames += struct.pack("<h", v)
+                  w.writeframes(bytes(frames))
+              rows.append({"id": f"syn{i:04d}", "path": path.name,
+                           "text": "synthetic test signal", "scenario": "synthetic",
+                           "source": "ci"})
+          (out / "manifest.jsonl").write_text(
+              "\n".join(json.dumps(r, ensure_ascii=False) for r in rows), encoding="utf-8")
+          print("synthetic dataset ok:", len(rows))
+          PY
+
+      - name: WER 计算链路自检（用参考文本当假设，验证管线可跑通）
+        run: |
+          python - <<'PY'
+          import json, pathlib, subprocess, sys
+          # 造一个最小 bench.json，验证 wer_eval 的解析与统计链路
+          rep = pathlib.Path("reports"); rep.mkdir(exist_ok=True)
+          bench = {"results": [{"config": "pytorch_fp32",
+                                "latency_s": [0.1, 0.2], "rtf": [0.1, 0.2],
+                                "texts": ["synthetic test signal", "synthetic test signal"],
+                                "wall_s": 0.3, "peak_vram_gb": 1.0}],
+                   "audio_seconds": 3.0}
+          (rep / "bench.json").write_text(json.dumps(bench, ensure_ascii=False), encoding="utf-8")
+          r = subprocess.run([sys.executable, "scripts/wer_eval.py",
+                              "--manifest", "data/audio/manifest.jsonl",
+                              "--report", "reports/bench.json",
+                              "--out", "reports/wer.json"], capture_output=True, text=True)
+          print(r.stdout); print(r.stderr, file=sys.stderr)
+          sys.exit(r.returncode)
+          PY
+
+      - name: 上传冒烟产物
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-artifacts
+          path: reports/
+          retention-days: 7

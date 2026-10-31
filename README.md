@@ -12,12 +12,11 @@ RTX 5070 Ti 16GB 上的 Whisper 部署与量化对比：**PyTorch FP32 / ONNX FP
 
 ```bash
 # 1) 环境（项目本地 venv）
-E:\ENV\Uv\uv.exe venv
-E:\ENV\Uv\uv.exe pip install -r requirements.txt
+python -m venv .venv
+pip install -r requirements.txt
 
-# 2) 准备音频（二选一）
-python scripts/prepare_data.py --src data/raw --minutes 30   # 用自己的素材
-python scripts/prepare_data.py --minutes 30                   # 自动下载 LibriSpeech test-clean
+# 2) 准备音频（默认 LibriSpeech test-clean，自带转写文本 → 可直接算 WER）
+python scripts/prepare_data.py --limit 60
 
 # 3) 导出模型
 python scripts/export_onnx.py --model small --quant fp16
@@ -25,21 +24,38 @@ python scripts/export_onnx.py --model small --quant int8
 python scripts/export_onnx.py --model small --quant fp16 --trt   # 需 TensorRT 10.x
 
 # 4) 跑评测
-python scripts/bench.py --manifest data/audio/manifest.jsonl --out reports/
-python scripts/wer_eval.py --manifest data/audio/manifest.jsonl --report reports/bench.json
+python scripts/bench.py --out reports/
+python scripts/wer_eval.py --report reports/bench.json
 
 # 5) 看报告
 cat reports/summary.md
 ```
 
+> 用自己的音频：`python scripts/prepare_data.py --src data/raw --limit 60`。
+> 同名 `.txt` 放参考文本即可参与 WER；没有标注则只出延迟 / 显存 / RTF。
+
 ## 脚本说明
 
 | 脚本 | 作用 |
 |---|---|
-| `scripts/prepare_data.py` | 切片为 16kHz 单声道 wav，生成 `manifest.jsonl`；无本地素材时自动取 LibriSpeech test-clean |
+| `scripts/prepare_data.py` | 构建评测集：默认拉 LibriSpeech test-clean（带转写文本），或切片本地音频；产出 `manifest.jsonl` |
 | `scripts/export_onnx.py` | 导出 FP16 ONNX / INT8 动态量化 ONNX，可选构建 TensorRT engine（`trtexec`） |
-| `scripts/bench.py` | 四配置逐条测量：延迟、P95、RTF、峰值显存、吞吐 |
+| `scripts/bench.py` | 四配置逐条测量：延迟、P95、RTF、峰值显存、吞吐，并留档 `config.json` |
 | `scripts/wer_eval.py` | 计算各配置 WER，并按场景拆解掉点位置 |
+
+## CI 自检
+
+每次 push 会触发 `.github/workflows/ci.yml`：
+
+- **lint job**：四个脚本的语法检查 + CLI 参数自检（不装重型依赖也能跑）
+- **selfcheck job**：合成音频端到端冒烟——生成带参考文本的合成数据集，跑通 WER 统计链路
+
+CI 绿灯 = 脚本没坏，**任何人 clone 后都能复现你的数字**。
+
+## 复现
+
+环境、随机种子、样本规模、硬件配置全部留档在 `reports/config.json`，
+复现步骤见 [`docs/reproduce.md`](docs/reproduce.md)。
 
 ## 评测维度
 
@@ -65,7 +81,8 @@ reports/
 ├── bench.json          逐条原始测量
 ├── summary.json        汇总统计
 ├── summary.md          对比表（可直接引用）
-└── wer.json            WER + 分场景 WER
+├── wer.json            WER + 分场景 WER
+└── config.json         本次运行的完整配置（模型 / 样本数 / 硬件 / 种子）
 ```
 
 `reports/example-summary.md` 是输出格式示例，实际数字由你本地跑出来后覆盖。
@@ -75,6 +92,7 @@ reports/
 - 固定随机种子（`prepare_data.py --seed`，默认 42），切片可复现。
 - 全部脚本接受显式参数，不依赖任何硬编码路径。
 - 模型版本通过 `openai/whisper-{model}` 指定，建议在报告中一并记录。
+- 完整复现步骤见 [`docs/reproduce.md`](docs/reproduce.md)。
 
 ## License
 
