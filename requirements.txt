@@ -1,0 +1,10 @@
+torch>=2.4
+onnx>=1.16
+onnxruntime-gpu>=1.19
+onnxruntime-tools>=1.19
+transformers>=4.44
+openai-whisper>=20240930
+soundfile>=0.12
+jiwer>=3.0
+numpy>=1.26
+pandas>=2.2
